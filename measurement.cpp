@@ -87,7 +87,7 @@ bool Measurement::start(const char* filename) {
 
     salida.open(filename);
     if (salida.is_open()) {
-        salida << "N,time(s),temp(C),current(A),voltage(V),resistance(Ohms)\n";
+        salida << "N,time(s),temp(ºC),current(mA),voltage(mV),resistance(Ohms)\n";
         active = true;
         step_count = 1;
         elapsed_time_seconds = 0.0;
@@ -117,11 +117,6 @@ bool Measurement::resume() {
 
 void Measurement::pause() {
     active = false;
-
-#ifdef ENABLE_IEEE_HARDWARE
-    long int status = 0;
-    send(12, "sour:clear:imm", &status);
-#endif
 }
 
 void Measurement::stop() {
@@ -171,11 +166,6 @@ MeasurementData Measurement::perform_measurement_cycle() {
     d.temp = std::atof(temp_ch);
     d.voltage = (voltage_neg - voltage_pos) / 2.0;
     d.resistance = std::fabs(d.voltage / configured_current_amp);
-#else
-    d.temp = 25.0 + (d.n * 0.1);
-    d.current = configured_current_amp;
-    d.resistance = 0.012 + (d.n * 0.0001);
-    d.voltage = d.resistance * configured_current_amp;
 #endif
 
     return d;
