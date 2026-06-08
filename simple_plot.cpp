@@ -7,39 +7,49 @@
 #include <iostream>
 
 namespace {
-double snap_tick_step(double range, int target_tick_count) {
-    if (target_tick_count < 1) target_tick_count = 1;
+    double snap_tick_step(double range, int target_tick_count) {
+        if (target_tick_count < 1) target_tick_count = 1;
 
-    if (range <= 0.0) return 1.0;
+        if (range <= 0.0) return 1.0;
 
-    double raw_step = range / static_cast<double>(target_tick_count);
-    if (raw_step <= 0.0) raw_step = 1.0;
+        double raw_step = range / static_cast<double>(target_tick_count);
+        if (raw_step <= 0.0) raw_step = 1.0;
 
-    double magnitude = std::pow(10.0, std::floor(std::log10(raw_step)));
-    double normalized = raw_step / magnitude;
+        double magnitude = std::pow(10.0, std::floor(std::log10(raw_step)));
+        double normalized = raw_step / magnitude;
 
-    double nice_normalized = 1.0;
-    if (normalized <= 1.0) nice_normalized = 1.0;
-    else if (normalized <= 2.0) nice_normalized = 2.0;
-    else if (normalized <= 5.0) nice_normalized = 5.0;
-    else nice_normalized = 10.0;
+        double nice_normalized = 1.0;
+        if (normalized <= 1.0) nice_normalized = 1.0;
+        else if (normalized <= 2.0) nice_normalized = 2.0;
+        else if (normalized <= 5.0) nice_normalized = 5.0;
+        else nice_normalized = 10.0;
 
-    return nice_normalized * magnitude;
-}
+        return nice_normalized * magnitude;
+    }
 
-double snap_down(double value, double step) {
-    return std::floor(value / step) * step;
-}
+    double snap_down(double value, double step) {
+        return std::floor(value / step) * step;
+    }
 
-double snap_up(double value, double step) {
-    return std::ceil(value / step) * step;
-}
+    double snap_up(double value, double step) {
+        return std::ceil(value / step) * step;
+    }
 
-void format_tick_value(double value, char* out) {
-    if (std::abs(value) >= 1000) sprintf(out, "%.1fk", value / 1000.0);
-    else if (std::abs(value) > 0 && std::abs(value) < 0.1) sprintf(out, "%.1fm", value * 1000.0);
-    else sprintf(out, "%.2f", value);
-}
+    void format_tick_value(double value, char* out) {
+        double abs_val = std::abs(value);
+
+        if      (abs_val >= 1e12)               sprintf(out, "%.1fT", value / 1e12);
+        else if (abs_val >= 1e9)                sprintf(out, "%.1fB", value / 1e9);
+        else if (abs_val >= 1e6)                sprintf(out, "%.1fM", value / 1e6);
+        else if (abs_val >= 1e3)                sprintf(out, "%.1fk", value / 1e3);
+        else if (abs_val >= 1.0)                sprintf(out, "%.2f",  value);
+        else if (abs_val >= 0.1)                sprintf(out, "%.2f",  value);
+        else if (abs_val >= 1e-3)               sprintf(out, "%.1fm", value * 1e3);
+        else if (abs_val >= 1e-6)               sprintf(out, "%.1fu", value * 1e6);
+        else if (abs_val >= 1e-9)               sprintf(out, "%.1fn", value * 1e9);
+        else if (abs_val > 0)                   sprintf(out, "%.1fp", value * 1e12);
+        else                                    sprintf(out, "0");
+    }
 }
 
 SimplePlot::SimplePlot(int X, int Y, int W, int H, const char* L) 
