@@ -35,20 +35,13 @@ namespace {
         return std::ceil(value / step) * step;
     }
 
-    void format_tick_value(double value, char* out) {
-        double abs_val = std::abs(value);
-
-        if      (abs_val >= 1e12)               sprintf(out, "%.1fT", value / 1e12);
-        else if (abs_val >= 1e9)                sprintf(out, "%.1fB", value / 1e9);
-        else if (abs_val >= 1e6)                sprintf(out, "%.1fM", value / 1e6);
-        else if (abs_val >= 1e3)                sprintf(out, "%.1fk", value / 1e3);
-        else if (abs_val >= 1.0)                sprintf(out, "%.2f",  value);
-        else if (abs_val >= 0.1)                sprintf(out, "%.2f",  value);
-        else if (abs_val >= 1e-3)               sprintf(out, "%.1fm", value * 1e3);
-        else if (abs_val >= 1e-6)               sprintf(out, "%.1fu", value * 1e6);
-        else if (abs_val >= 1e-9)               sprintf(out, "%.1fn", value * 1e9);
-        else if (abs_val > 0)                   sprintf(out, "%.1fp", value * 1e12);
-        else                                    sprintf(out, "0");
+    void format_tick_value(double value, int exp, char* out) {
+        double scaled = value / std::pow(10.0, exp);
+        if (std::abs(scaled) < 1e-9) {
+            sprintf(out, "0");
+        } else {
+            sprintf(out, "%.2f", scaled);
+        }
     }
 }
 
@@ -117,16 +110,10 @@ void SimplePlot::add_data(double x, double y) {
     // 2. Calculate the "Real" Y-range used by the chart (including your 10% padding)
     double data_range_y = max_y - min_y;
     if (data_range_y == 0) data_range_y = 1.0; 
-    double chart_range_y = data_range_y * 1.2; // Matching your padding logic
-
-    // 3. Calculate the required X-range to maintain 1:1
-    // Width / Height gives us the aspect ratio of the widget box
-    double aspect_ratio = (double)w() / (double)h();
-    double required_range_x = chart_range_y * aspect_ratio;
 
     // 4. Keep the displayed X-axis starting from the first data value
     this->display_min_x = min_x;
-    this->display_max_x = std::max(display_min_x + required_range_x, max_x);
+    this->display_max_x = max_x;
 
     // 5. Apply Y-bounds to Fl_Chart
     double chart_min_y = min_y - (data_range_y * 0.1);
@@ -245,13 +232,11 @@ void SimplePlot::update_tick_calculations() {
 
     // 3. Calculate 1:1 X-Range based on displayed Y-Range and widget aspect ratio
     double aspect_ratio = (double)w() / (double)h();
-    double display_range_y = display_max_y - display_min_y;
-    if (display_range_y <= 0.0) display_range_y = active_range_y;
-    double required_range_x = (display_range_y * aspect_ratio);
 
     this->display_min_x = min_x;
-    this->display_max_x = std::max(display_min_x + required_range_x, max_x);
+    this->display_max_x = max_x;
     double active_range_x = display_max_x - display_min_x;
+    if (active_range_x <= 0.0) active_range_x = 1.0;
 
     // 4. Calculate X-Ticks (matching the density of Y)
     int num_x = (int)(num_y * aspect_ratio);
@@ -277,6 +262,18 @@ void SimplePlot::update_tick_calculations() {
         t.pixel_pos = x() + static_cast<int>(w() * normalized);
         x_ticks.push_back(t);
     }
+
+    // Calcula el exponente del tick de mayor magnitud en un vector
+    auto calc_exp = [](const std::vector<Tick>& ticks) -> int {
+        double max_abs = 0.0;
+        for (const auto& t : ticks)
+            max_abs = std::max(max_abs, std::abs(t.value));
+        if (max_abs == 0.0) return 0;
+        return (int)std::floor(std::log10(max_abs));
+    };
+
+    y_exp = calc_exp(y_ticks);
+    x_exp = calc_exp(x_ticks);
 }
 
 void SimplePlot::draw_grid_lines() {
@@ -335,7 +332,7 @@ void SimplePlot::draw_tick_labels() {
 
     // Y-Axis Labels
     for (const auto& t : y_ticks) {
-        format_tick_value(t.value, buf);
+        format_tick_value(t.value, y_exp, buf);
 
         int tw = 0;
         int th = 0;
@@ -350,12 +347,30 @@ void SimplePlot::draw_tick_labels() {
     for (const auto& t : x_ticks) {
         if (t.pixel_pos < x() || t.pixel_pos > x() + w()) continue;
 
-        format_tick_value(t.value, buf);
+        format_tick_value(t.value, x_exp, buf);
 
         int tw, th;
         fl_measure(buf, tw, th);
         fl_draw(buf, t.pixel_pos - (tw / 2), y() + h() + 15);
         fl_line(t.pixel_pos, y() + h(), t.pixel_pos, y() + h() + 5);
+    }
+
+    // Multiplicador eje Y: arriba del eje, alineado a la izquierda del área de ticks
+    if (y_exp != 0) {
+        fl_font(FL_HELVETICA, 10);
+        char exp_buf[32];
+        sprintf(exp_buf, "\xc3\x97" "10^ %d", y_exp); // "×10^n" en UTF-8
+        fl_color(FL_BLACK);
+        fl_draw(exp_buf, x() + 4, y() - 4);
+    }
+
+    // Multiplicador eje X: a la derecha del último tick
+    if (x_exp != 0) {
+        fl_font(FL_HELVETICA, 10);
+        char exp_buf[32];
+        sprintf(exp_buf, "\xc3\x97" "10^ %d", x_exp);
+        fl_color(FL_BLACK);
+        fl_draw(exp_buf, x() + w() + 4, y() + h() - 4);
     }
 }
 
@@ -375,7 +390,7 @@ void SimplePlot::draw_axis_titles() {
         char tick_buf[64];
         fl_font(FL_HELVETICA, 10);
         for (const auto& t : y_ticks) {
-            format_tick_value(t.value, tick_buf);
+            format_tick_value(t.value, y_exp, tick_buf);
 
             int tick_w = 0;
             int tick_h = 0;
@@ -407,7 +422,7 @@ void SimplePlot::draw() {
     char tick_buf[64];
     fl_font(FL_HELVETICA, 10);
     for (const auto& t : y_ticks) {
-        format_tick_value(t.value, tick_buf);
+        format_tick_value(t.value, y_exp, tick_buf);
         int tick_w = 0;
         int tick_h = 0;
         fl_measure(tick_buf, tick_w, tick_h, 0);
@@ -429,8 +444,10 @@ void SimplePlot::draw() {
     
     // Clear the outside area before drawing new labels
     fl_color(FL_GRAY);
-    fl_rectf(left_margin_x, y() - 40, left_margin_width - 2, h() + 80); // Y area
-    fl_rectf(x() - 20, y() + h() + 1, w() + 50, 80); // X area
+    fl_rectf(left_margin_x, y() - 50, left_margin_width - 2, h() + 90); // Y area
+    fl_rectf(x() - 20, y() + h(), w() + 120, 80); // X area
+    fl_rectf(x() + w(), y() - 20, 120, h() + 40); // Right area for X multiplier
+    fl_rectf(left_margin_x, y() - 60, left_margin_width + 90, h() - 100); // Left area for Y multiplier
 
     draw_grid_lines();
     draw_data_series();

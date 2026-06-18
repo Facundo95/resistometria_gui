@@ -22,6 +22,8 @@ private:
     std::vector<Tick> x_ticks;
     std::vector<Tick> y_ticks;
     Fl_Color line_color;
+    int x_exp = 0;
+    int y_exp = 0;
 
     void update_tick_calculations(); // Logic/Math
     void draw_grid_lines();          // Visuals: Lines

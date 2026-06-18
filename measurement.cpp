@@ -9,6 +9,36 @@
 #include "IEEE-C.H"
 #endif
 
+static constexpr bool DEBUG_FAKE_DATA = false; // Set to true to enable synthetic data generation without hardware
+
+static MeasurementData generate_fake_data(int step, double time, double current_amp) {
+    MeasurementData d;
+    d.n       = step;
+    d.time    = time;
+ 
+    // Temperature: starts at 20 °C, drifts up slowly with small noise
+    d.temp = 20.0
+           + 0.002 * time                                        // slow drift
+           + 0.05  * std::sin(time * 0.3)                        // slow oscillation
+           + 0.01  * ((std::rand() % 100) / 100.0 - 0.5);       // ±0.005 °C noise
+ 
+    // True resistance: ~0.25 Ohm, drifting slightly with temperature
+    double R_true = 0.25 + 0.0001 * (d.temp - 20.0);
+ 
+    // Occasional glitch (1 in 50 samples)
+    if (std::rand() % 5 == 0)
+        R_true += 0.3 * ((std::rand() % 100) / 100.0 - 0.5);
+ 
+    // Voltage from V = I·R, converted to mV; small offset + noise
+    double offset_mv  = -0.5;                                  // systematic offset
+    double noise_mv   = 0.002 * ((std::rand() % 100) / 100.0 - 0.5);
+    d.current  = current_amp * 1e3;                              // A → mA
+    d.voltage  = time * 1000;//-(R_true * current_amp * 1e3) + offset_mv + noise_mv;  // mV
+    d.resistance = std::fabs(d.voltage / d.current);             // Ohm
+ 
+    return d;
+}
+
 Measurement::Measurement()
     : active(false), step_count(1), hardware_connected(false), last_connection_success(false),
       sample_interval_seconds(1.0), configured_current_amp(1e-1), elapsed_time_seconds(0.0) {}
@@ -21,6 +51,13 @@ void Measurement::set_acquisition_params(double interval_seconds, double current
 }
 
 bool Measurement::connect_hardware() {
+
+    if (DEBUG_FAKE_DATA) {
+        last_status_message = "DEBUG: modo simulado activo, datos sinteticos generados.";
+        std::cout << last_status_message << "\n";
+        return true;
+    }
+
 #ifdef ENABLE_IEEE_HARDWARE
     long int status = 0;
 
@@ -125,10 +162,12 @@ void Measurement::pause() {
 void Measurement::stop() {
     active = false;
 
-#ifdef ENABLE_IEEE_HARDWARE
-    long int status = 0;
-    send(12, "sour:clear:imm", &status);
-#endif
+    if (!DEBUG_FAKE_DATA) {
+        #ifdef ENABLE_IEEE_HARDWARE
+            long int status = 0;
+            send(12, "sour:clear:imm", &status);
+        #endif
+    }
 
     if (salida.is_open()) salida.close();
 }
@@ -138,6 +177,10 @@ MeasurementData Measurement::perform_measurement_cycle() {
     d.n = step_count++;
     elapsed_time_seconds += sample_interval_seconds;
     d.time = elapsed_time_seconds;
+
+    if (DEBUG_FAKE_DATA) {
+        return generate_fake_data(d.n, d.time, configured_current_amp);
+    }
 
 #ifdef ENABLE_IEEE_HARDWARE
     long int status = 0;

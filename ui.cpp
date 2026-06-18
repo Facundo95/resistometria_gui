@@ -143,7 +143,7 @@ LabInterface::LabInterface(Measurement* meas) : engine(meas) {
     res_temp_chart = new SimplePlot(100, 340, 650, 162.5, "Resistance vs Temperature");
     res_temp_chart->set_axis_titles("Temperature (°C)", "Resistance");
     res_temp_chart->set_line_color(FL_MAGENTA);
-    res_temp_chart->set_xlimit_start(15.0,25.0);
+    res_temp_chart->set_xlimit_start(1.5,2.5);
 
     win->add(res_temp_chart);
 
