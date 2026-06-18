@@ -79,6 +79,13 @@ void SimplePlot::set_axis_titles(const char* x_title, const char* y_title) {
     redraw();
 }
 
+void SimplePlot::set_xlimit_start(double start, double end) {
+    display_min_x = start;
+    display_max_x = end;
+    update_tick_calculations();
+    redraw();
+}
+
 void SimplePlot::reset() {
     clear();
     x_data.clear();

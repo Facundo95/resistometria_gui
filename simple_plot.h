@@ -43,6 +43,7 @@ public:
     void set_axis_titles(const char* x_title, const char* y_title);
     void set_x_axis_label(const char* label) { set_x_axis_title(label); }
     void set_y_axis_label(const char* label) { set_y_axis_title(label); }
+    void set_xlimit_start(double start, double end);
 };
 
 #endif
