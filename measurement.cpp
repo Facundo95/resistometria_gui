@@ -102,7 +102,10 @@ bool Measurement::resume() {
     if (!hardware_connected) {
         hardware_connected = connect_hardware();
         last_connection_success = hardware_connected;
-        if (!hardware_connected) return false;
+        if (!hardware_connected) {
+            last_status_message = "No se pudo conectar el hardware.";
+            return false;
+        }
     }
 
     if (!salida.is_open()) {
